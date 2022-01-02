@@ -8,7 +8,7 @@ using OpenTK.Mathematics;
 
 namespace MomentShadowMappingTest.ShaderProgramm
 {
-    public static class ShaderStandard
+    public static class ShaderShadow
     {
         private static int _shaderId = -1;
 
@@ -16,14 +16,6 @@ namespace MomentShadowMappingTest.ShaderProgramm
         private static int _fragmentShaderId = -1;
 
         private static int _uniformMatrix = -1;
-        private static int _uniformModelMatrix = -1;
-        private static int _uniformMatrixShadow = -1;
-
-        private static int _uniformTexture = -1;
-        private static int _uniformTextureShadow = -1;
-
-        private static int _uniformLightPosition = -1;
-        private static int _uniformAmbientLight = -1;
 
         public static void Init()
         {
@@ -32,14 +24,14 @@ namespace MomentShadowMappingTest.ShaderProgramm
             Assembly a = Assembly.GetExecutingAssembly();
 
             // Vertex Shader auslesen:
-            Stream sVertex = a.GetManifestResourceStream("MomentShadowMappingTest.ShaderProgramm.shaderStandard_vertex.glsl");
+            Stream sVertex = a.GetManifestResourceStream("MomentShadowMappingTest.ShaderProgramm.shaderShadow_vertex.glsl");
             StreamReader sReaderVertex = new StreamReader(sVertex);
             string sVertexCode = sReaderVertex.ReadToEnd();
             sReaderVertex.Dispose();
             sVertex.Close();
 
             // Fragment Shader auslesen:
-            Stream sFragment = a.GetManifestResourceStream("MomentShadowMappingTest.ShaderProgramm.shaderStandard_fragment.glsl");
+            Stream sFragment = a.GetManifestResourceStream("MomentShadowMappingTest.ShaderProgramm.shaderShadow_fragment.glsl");
             StreamReader sReaderFragment = new StreamReader(sFragment);
             string sFragmentCode = sReaderFragment.ReadToEnd();
             sReaderFragment.Dispose();
@@ -60,14 +52,6 @@ namespace MomentShadowMappingTest.ShaderProgramm
             GL.LinkProgram(_shaderId);
 
             _uniformMatrix = GL.GetUniformLocation(_shaderId, "uMatrix");
-            _uniformModelMatrix = GL.GetUniformLocation(_shaderId, "uModelMatrix");
-            _uniformMatrixShadow = GL.GetUniformLocation(_shaderId, "uMatrixShadow");
-
-            _uniformTexture = GL.GetUniformLocation(_shaderId, "uTexture");
-            _uniformTextureShadow = GL.GetUniformLocation(_shaderId, "uTextureShadow");
-
-            _uniformLightPosition = GL.GetUniformLocation(_shaderId, "uLightPosition");
-            _uniformAmbientLight = GL.GetUniformLocation(_shaderId, "uAmbientLight");
         }
 
         public static int GetProgramId()
@@ -78,36 +62,6 @@ namespace MomentShadowMappingTest.ShaderProgramm
         public static int GetMatrixId()
         {
             return _uniformMatrix;
-        }
-
-        public static int GetModelMatrixId()
-        {
-            return _uniformModelMatrix;
-        }
-
-        public static int GetMatrixShadowId()
-        {
-            return _uniformMatrixShadow;
-        }
-
-        public static int GetTextureId()
-        {
-            return _uniformTexture;
-        }
-
-        public static int GetTextureShadowId()
-        {
-            return _uniformTextureShadow;
-        }
-
-        public static int GetLightPositionId()
-        {
-            return _uniformLightPosition;
-        }
-
-        public static int GetAmbientLightId()
-        {
-            return _uniformAmbientLight;
         }
     }
 }

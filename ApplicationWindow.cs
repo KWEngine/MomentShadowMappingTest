@@ -20,6 +20,13 @@ namespace MomentShadowMappingTest
         private Matrix4 _projectionMatrix = Matrix4.Identity;   // Gleicht das Bildschirmverhältnis (z.B. 16:9) aus
         private Matrix4 _viewMatrix = Matrix4.Identity;         // Simuliert eine Kamera
 
+        private Matrix4 _viewMatrixShadowMap = Matrix4.Identity;
+        private Matrix4 _projectionMatrixShadowMap = Matrix4.Identity;
+        private Matrix4 _viewProjectionMatrixShadowMap = Matrix4.Identity;
+
+        private int _fbShadowMap = -1;
+        private int _fbShadowMapTexture = -1;
+
         public ApplicationWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) 
             : base(gameWindowSettings, nativeWindowSettings)
         {
@@ -43,6 +50,8 @@ namespace MomentShadowMappingTest
             PrimitiveQuad.Init();
             PrimitiveCube.Init();
             ShaderStandard.Init();
+            ShaderShadow.Init();
+            InitializeShadowMap();
 
             _viewMatrix = Matrix4.LookAt(0, 25, 25, 0, 0, 0, 0, 1, 0);
 
@@ -60,7 +69,7 @@ namespace MomentShadowMappingTest
             _currentWorld.AddGameObject(g2);
             
 
-            _currentWorld.SetSunPosition(25, 25, 25);
+            _currentWorld.SetSunPosition(50, 50, 50);
         }
 
         protected override void OnResize(ResizeEventArgs e)
@@ -72,10 +81,75 @@ namespace MomentShadowMappingTest
             _projectionMatrix = Matrix4.CreatePerspectiveFieldOfView((float)Math.PI / 4f, (float)Size.X / Size.Y, 0.1f, 1000f);
         }
 
+
+        private void InitializeShadowMap()
+        {
+            uint filterNearest = (uint)TextureMagFilter.Linear;
+            uint clampToEdge = (uint)TextureWrapMode.ClampToEdge;
+
+            GL.CreateFramebuffers(1, out _fbShadowMap);
+            GL.CreateTextures(TextureTarget.Texture2D, 1, out _fbShadowMapTexture);
+
+            GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapTexture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.DepthComponent, 1024, 1024, 0, PixelFormat.DepthComponent, PixelType.Float, IntPtr.Zero);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ref clampToEdge);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, ref clampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbShadowMap);
+            GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment, _fbShadowMapTexture, 0);
+            GL.DrawBuffer(DrawBufferMode.None);
+            GL.ReadBuffer(ReadBufferMode.None);
+
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+            _projectionMatrixShadowMap = Matrix4.CreatePerspectiveFieldOfView((float)Math.PI / 4f, 1f, 1f, 200f);
+        }
+
+        private void RenderShadowMap()
+        {
+            GL.Viewport(0, 0, 1024, 1024);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbShadowMap);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+
+            _viewMatrixShadowMap = Matrix4.LookAt(_currentWorld.GetSunPosition(), new Vector3(0, 0, 0), Vector3.UnitY);
+            _viewProjectionMatrixShadowMap = _viewMatrixShadowMap * _projectionMatrixShadowMap;
+
+            GL.UseProgram(ShaderShadow.GetProgramId());
+
+            foreach (GameObject g in _currentWorld.GetGameObjects())
+            {
+                Matrix4 modelMatrix =
+                    Matrix4.CreateScale(g.GetScale())
+                    * Matrix4.CreateFromQuaternion(g.GetRotation())
+                    * Matrix4.CreateTranslation(g.Position);
+
+                Matrix4 mvpShadowMap = modelMatrix * _viewProjectionMatrixShadowMap;
+                GL.UniformMatrix4(ShaderShadow.GetMatrixId(), false, ref mvpShadowMap);
+
+                GL.BindVertexArray(PrimitiveCube.GetVAOId());
+                GL.DrawArrays(PrimitiveType.Triangles, 0, PrimitiveCube.GetPointCount());
+                GL.BindVertexArray(0);
+            }
+
+            GL.UseProgram(0);
+        }
+
         protected override void OnRenderFrame(FrameEventArgs args)
         {
             base.OnRenderFrame(args);
             // Hier passiert das tatsächliche Zeichnen von Formen (z.B. Dreiecke)
+
+            RenderShadowMap();
+
+            // back to normal fb:
+            GL.Viewport(0, 0, Size.X, Size.Y);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
 
             // view-projection matrix:
@@ -99,11 +173,16 @@ namespace MomentShadowMappingTest
 
                 GL.UniformMatrix4(ShaderStandard.GetMatrixId(), false, ref mvp);
                 GL.UniformMatrix4(ShaderStandard.GetModelMatrixId(), false, ref modelMatrix);
+                GL.UniformMatrix4(ShaderStandard.GetMatrixShadowId(), false, ref _viewProjectionMatrixShadowMap);
 
                 // Texture an den Shader übertragen:
                 GL.ActiveTexture(TextureUnit.Texture0);
                 GL.BindTexture(TextureTarget.Texture2D, g.GetTextureId());
                 GL.Uniform1(ShaderStandard.GetTextureId(), 0);
+
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapTexture);
+                GL.Uniform1(ShaderStandard.GetTextureShadowId(), 1);
 
                 GL.BindVertexArray(PrimitiveCube.GetVAOId());
                 GL.DrawArrays(PrimitiveType.Triangles, 0, PrimitiveCube.GetPointCount());
