@@ -1,6 +1,9 @@
 ﻿#version 450
 
+layout(location = 0) out float color;
+
+
 void main()
 {
-	gl_FragDepth = gl_FragCoord.z;
+	color = gl_FragCoord.z;
 }

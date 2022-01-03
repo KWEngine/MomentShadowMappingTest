@@ -24,13 +24,13 @@ namespace MomentShadowMappingTest.Primitives
 
         private static readonly float[] _uvs = new float[]
         {
-           0, 1,
-           1, 1,
            0, 0,
-
-           1, 1,
            1, 0,
-           0, 0
+           0, 1,
+
+           1, 0,
+           1, 1,
+           0, 1
         };
 
         private static readonly float[] _normals = new float[]

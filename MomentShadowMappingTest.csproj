@@ -1,11 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <ApplicationIcon />
+    <StartupObject />
   </PropertyGroup>
 
   <ItemGroup>
+    <None Remove="ShaderProgramm\shaderMoments_fragment.glsl" />
+    <None Remove="ShaderProgramm\shaderMoments_vertex.glsl" />
     <None Remove="ShaderProgramm\shaderShadow_fragment.glsl" />
     <None Remove="ShaderProgramm\shaderShadow_vertex.glsl" />
     <None Remove="ShaderProgramm\shaderStandard_fragment.glsl" />
@@ -16,7 +20,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="ShaderProgramm\shaderMoments_fragment.glsl" />
     <EmbeddedResource Include="ShaderProgramm\shaderShadow_fragment.glsl" />
+    <EmbeddedResource Include="ShaderProgramm\shaderMoments_vertex.glsl" />
     <EmbeddedResource Include="ShaderProgramm\shaderStandard_fragment.glsl" />
     <EmbeddedResource Include="ShaderProgramm\shaderShadow_vertex.glsl" />
     <EmbeddedResource Include="ShaderProgramm\shaderStandard_vertex.glsl" />

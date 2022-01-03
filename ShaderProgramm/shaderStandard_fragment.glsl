@@ -8,11 +8,11 @@ in vec3 vNormal;
 in vec4 vFragmentPosLightSpace;
 
 uniform sampler2D uTexture;
-uniform sampler2D uTextureShadow;
+//uniform sampler2D uTextureShadow;
 
 uniform vec3 uLightPosition;
 uniform vec3 uAmbientLight;
-
+/*
 float shadowCalculation()
 {
     // perform perspective divide
@@ -26,6 +26,17 @@ float shadowCalculation()
 	float avAmbient = (uAmbientLight.r + uAmbientLight.g + uAmbientLight.b) / 3.0;
 	return max(shadow, avAmbient);
 }
+*/
+float shadowCalculationDummy()
+{
+	return 1.0;
+}
+
+float shadowCalculationMSM(vec4 b, float fragmentDepth)
+{
+
+	return 1;
+}
 
 void main()
 {
@@ -38,7 +49,7 @@ void main()
 	float sumLightPower = dotproduct * (100.0 / surfaceToLightDistanceSquared);
 
 	vec3 textureColor = texture(uTexture, vTextureCoordinates).xyz;
-	vec3 lightIntensity = vec3(sumLightPower, sumLightPower, sumLightPower) * shadowCalculation();
+	vec3 lightIntensity = vec3(sumLightPower, sumLightPower, sumLightPower);
 	//color = vec4(textureColor * (lightIntensity + uAmbientLight), 1.0);
-	color = vec4(textureColor * shadowCalculation(), 1.0);
+	color = vec4(textureColor * shadowCalculationDummy(), 1.0);
 }
