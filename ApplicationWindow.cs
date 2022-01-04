@@ -30,6 +30,10 @@ namespace MomentShadowMappingTest
         private int _fbShadowMapTextureDownsampled = -1;
         private int _fbShadowMapColor = -1; 
         private int _fbShadowMapColorTexture = -1;
+        private int _fbBlur1 = -1;
+        private int _fbBlur1Texture = -1;
+        private int _fbBlur2 = -1;
+        private int _fbBlur2Texture = -1;
 
         public ApplicationWindow(GameWindowSettings gameWindowSettings, NativeWindowSettings nativeWindowSettings) 
             : base(gameWindowSettings, nativeWindowSettings)
@@ -56,9 +60,11 @@ namespace MomentShadowMappingTest
             ShaderStandard.Init();
             ShaderShadow.Init();
             ShaderMoments.Init();
+            ShaderBlur.Init();
             InitializeShadowMap();
+            InitializeBlurFramebuffers();
 
-            _viewMatrix = Matrix4.LookAt(0, 25, 25, 0, 0, 0, 0, 1, 0);
+            _viewMatrix = Matrix4.LookAt(-25, 25, 25, 0, 0, 0, 0, 1, 0);
 
             GameObject g1 = new GameObject();
             g1.Position = new Vector3(0, 2.5f, 0);
@@ -75,6 +81,15 @@ namespace MomentShadowMappingTest
             
 
             _currentWorld.SetSunPosition(25, 25, 25);
+        }
+
+        private float _sunXfactor = 0;
+        private float _sunZfactor = 0;
+        private void MoveSunAround()
+        {
+            _sunXfactor+= 0.001f;
+            _sunZfactor+= 0.001f;
+            _currentWorld.SetSunPosition((float)Math.Cos(_sunXfactor) * 25, 25, (float)Math.Sin(_sunZfactor) * 25);
         }
 
         protected override void OnResize(ResizeEventArgs e)
@@ -129,7 +144,8 @@ namespace MomentShadowMappingTest
             GL.CreateTextures(TextureTarget.Texture2D, 1, out _fbShadowMapColorTexture);
 
             GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapColorTexture);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 1024, 1024, 0, PixelFormat.Rgba, PixelType.UnsignedShort, IntPtr.Zero);
+            //GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba32f, 1024, 1024, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 1024, 1024, 0, PixelFormat.Rgba, PixelType.UnsignedShort, IntPtr.Zero);
             GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterNearest);
             GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterNearest);
             GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ref clampToEdge);
@@ -155,8 +171,8 @@ namespace MomentShadowMappingTest
 
             GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapTextureDownsampled);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.R32f, 1024, 1024, 0, PixelFormat.Red, PixelType.Float, IntPtr.Zero);
-            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterLinear);
-            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterLinear);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterNearest);
             GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ref clampToEdge);
             GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, ref clampToEdge);
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureBorderColor, 1f);
@@ -174,18 +190,78 @@ namespace MomentShadowMappingTest
             }
 
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            
+
 
             // ===============================================
 
+            
+
             _projectionMatrixShadowMap = Matrix4.CreatePerspectiveFieldOfView((float)Math.PI / 4f, 1f, 1f, 100f);
+        }
+
+        private void InitializeBlurFramebuffers()
+        {
+            uint filterNearest = (uint)TextureMagFilter.Nearest;
+            uint filterLinear = (uint)TextureMagFilter.Linear;
+            uint filterLinearMipmap = (uint)TextureMinFilter.LinearMipmapLinear;
+            uint clampToEdge = (uint)TextureWrapMode.ClampToEdge;
+
+            // Buffer #1:
+            GL.CreateFramebuffers(1, out _fbBlur1);
+            GL.CreateTextures(TextureTarget.Texture2D, 1, out _fbBlur1Texture);
+
+            GL.BindTexture(TextureTarget.Texture2D, _fbBlur1Texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 1024, 1024, 0, PixelFormat.Rgba, PixelType.UnsignedShort, IntPtr.Zero);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ref clampToEdge);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, ref clampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbBlur1);
+            GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, _fbBlur1Texture, 0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+            FramebufferErrorCode status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                throw new Exception("Framebuffer invalid.");
+            }
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+
+            // Buffer #2:
+            GL.CreateFramebuffers(1, out _fbBlur2);
+            GL.CreateTextures(TextureTarget.Texture2D, 1, out _fbBlur2Texture);
+
+            GL.BindTexture(TextureTarget.Texture2D, _fbBlur2Texture);
+            GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 1024, 1024, 0, PixelFormat.Rgba, PixelType.UnsignedShort, IntPtr.Zero);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, ref filterLinearMipmap);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureMagFilter, ref filterNearest);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapS, ref clampToEdge);
+            GL.TexParameterI(TextureTarget.Texture2D, TextureParameterName.TextureWrapT, ref clampToEdge);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbBlur2);
+            GL.FramebufferTexture(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, _fbBlur2Texture, 0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+
+            status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
+            if (status != FramebufferErrorCode.FramebufferComplete)
+            {
+                throw new Exception("Framebuffer invalid.");
+            }
+
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
         }
 
         private void RenderShadowMap()
         {
             GL.Viewport(0, 0, 1024, 1024);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbShadowMap);
+            GL.ClearColor(1, 0, 0, 0);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.ClearColor(0, 0, 0, 1);
 
             _viewMatrixShadowMap = Matrix4.LookAt(_currentWorld.GetSunPosition(), new Vector3(0, 0, 0), Vector3.UnitY);
             _viewProjectionMatrixShadowMap = _viewMatrixShadowMap * _projectionMatrixShadowMap;
@@ -235,6 +311,40 @@ namespace MomentShadowMappingTest
             GL.UseProgram(0);
         }
 
+        private void BlurMomentsMap()
+        {
+            GL.UseProgram(ShaderBlur.GetProgramId());
+
+            // x axis:
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbBlur1);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Uniform1(ShaderBlur.GetAxisId(), 0);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapColorTexture);
+            GL.Uniform1(ShaderBlur.GetTextureInputId(), 0);
+            GL.BindVertexArray(PrimitiveQuad.GetVAOId());
+            GL.DrawArrays(PrimitiveType.Triangles, 0, PrimitiveQuad.GetPointCount());
+            GL.BindVertexArray(0);
+
+            // y axis:
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, _fbBlur2);
+            GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+            GL.Uniform1(ShaderBlur.GetAxisId(), 1);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, _fbBlur1Texture);
+            GL.Uniform1(ShaderBlur.GetTextureInputId(), 0);
+            GL.BindVertexArray(PrimitiveQuad.GetVAOId());
+            GL.DrawArrays(PrimitiveType.Triangles, 0, PrimitiveQuad.GetPointCount());
+            GL.BindVertexArray(0);
+
+            // done!
+            GL.UseProgram(0);
+
+            GL.BindTexture(TextureTarget.Texture2D, _fbBlur2Texture);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.BindTexture(TextureTarget.Texture2D, 0);
+        }
+
         protected override void OnRenderFrame(FrameEventArgs args)
         {
             base.OnRenderFrame(args);
@@ -242,6 +352,7 @@ namespace MomentShadowMappingTest
 
             RenderShadowMap();
             RenderMomentsMap();
+            BlurMomentsMap();
 
             // back to normal fb:
             GL.Viewport(0, 0, Size.X, Size.Y);
@@ -276,9 +387,9 @@ namespace MomentShadowMappingTest
                 GL.BindTexture(TextureTarget.Texture2D, g.GetTextureId());
                 GL.Uniform1(ShaderStandard.GetTextureId(), 0);
 
-                //GL.ActiveTexture(TextureUnit.Texture1);
-                //GL.BindTexture(TextureTarget.Texture2D, _fbShadowMapTexture);
-                //GL.Uniform1(ShaderStandard.GetTextureShadowId(), 1);
+                GL.ActiveTexture(TextureUnit.Texture1);
+                GL.BindTexture(TextureTarget.Texture2D, _fbBlur2Texture);
+                GL.Uniform1(ShaderStandard.GetTextureShadowId(), 1);
 
                 GL.BindVertexArray(PrimitiveCube.GetVAOId());
                 GL.DrawArrays(PrimitiveType.Triangles, 0, PrimitiveCube.GetPointCount());
@@ -301,6 +412,7 @@ namespace MomentShadowMappingTest
             {
                 g.Update(KeyboardState, MouseState);
             }
+            MoveSunAround();
         }
     }
 }
